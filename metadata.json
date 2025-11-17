@@ -1,0 +1,5 @@
+{
+  "name": "Sistema de Controle de Locação",
+  "description": "Um aplicativo para controlar o que está sendo alugado, o que foi devolvido e gerenciar custos associados a locações de ferramentas e itens.",
+  "requestFramePermissions": []
+}
