@@ -18,24 +18,20 @@ const setSession = (user: User | null) => {
 
 // --- USERS API ---
 
-export const getUsers = async (): Promise<StoredUser[]> => {
+export const getUsers = async (): Promise<User[]> => {
     const response = await fetch(`${API_BASE_URL}/users`);
     if (!response.ok) throw new Error('Falha ao buscar usuários');
     return response.json();
 };
 
-export const saveUsers = async (users: StoredUser[]): Promise<void> => {
-    // Esta função agora representa adicionar um novo usuário, pois a lista é gerenciada pelo backend.
-    // A lógica de "salvar a lista inteira" não se aplica mais.
-    // Vamos adaptar para adicionar um usuário de cada vez.
-    const newUser = users[users.length - 1]; // Assume que o novo usuário é o último
+export const addUser = async (user: StoredUser): Promise<void> => {
     const response = await fetch(`${API_BASE_URL}/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            email: newUser.email,
-            password: newUser.password_very_insecure, // O backend irá hashear
-            role: newUser.role,
+            email: user.email,
+            password: user.password_very_insecure, // O backend irá hashear
+            role: user.role,
         }),
     });
     if (!response.ok) {
@@ -43,6 +39,7 @@ export const saveUsers = async (users: StoredUser[]): Promise<void> => {
         throw new Error(errorData.error || 'Falha ao adicionar usuário');
     }
 };
+
 
 export const deleteUser = async (email: string): Promise<void> => {
     const response = await fetch(`${API_BASE_URL}/users/${encodeURIComponent(email)}`, {

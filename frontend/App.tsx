@@ -231,9 +231,11 @@ const App: React.FC = () => {
     URL.revokeObjectURL(link.href);
   }, [filteredRentals, calculateCost]);
 
-  const totalCost = useMemo(() => filteredRentals.reduce((sum, rental) => sum + calculateCost(rental), 0), [filteredRentals, calculateCost]);
+  // FIX: Defensively cast to Number to prevent potential arithmetic errors if API returns non-numeric values.
+  const totalCost = useMemo(() => filteredRentals.reduce((sum, rental) => sum + Number(calculateCost(rental)), 0), [filteredRentals, calculateCost]);
+  // FIX: Defensively cast to Number to prevent potential arithmetic errors if API returns non-numeric values.
   const projectCosts = useMemo(() => Object.entries(rentals.reduce((acc, rental) => {
-    acc[rental.project] = (acc[rental.project] || 0) + calculateCost(rental);
+    acc[rental.project] = (acc[rental.project] || 0) + Number(calculateCost(rental));
     return acc;
   }, {} as { [key: string]: number })).map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total), [rentals, calculateCost]);
 

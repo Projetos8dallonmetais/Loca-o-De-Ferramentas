@@ -37,4 +37,31 @@ export const ReturnIcon = () => (
 
 export const PaperclipIcon = () => (
     <svg {...iconProps} className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6
+        <path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.122 2.122l7.81-7.81" />
+    </svg>
+);
+
+export const ShareIcon = () => (
+    <svg {...iconProps} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.195.025.39.05.588.08m0 0a2.25 2.25 0 11-1.636 3.86.51.51 0 01.321-.102l1.315-.317m0 0a2.25 2.25 0 000 2.186m0-2.186c-.195.025-.39.05-.588.08m0 0a2.25 2.25 0 101.636 3.86.51.51 0 00-.321-.102l-1.315-.317m0 0c.635 1.017 1.66 1.746 2.83 2.083m0 0a2.25 2.25 0 002.223-2.223c0-1.03-.683-1.9-1.636-2.186m-1.636-2.186a2.25 2.25 0 010-2.186m0 2.186c-.195-.025-.39-.05-.588-.08m0 0a2.25 2.25 0 111.636-3.86.51.51 0 01-.321.102l-1.315-.317m0 0c-.635-1.017-1.66-1.746-2.83-2.083m0 0a2.25 2.25 0 00-2.223 2.223c0 1.03.683 1.9 1.636 2.186m1.636 2.186a2.25 2.25 0 010 2.186m0-2.186c.195.025.39.05.588.08" />
+    </svg>
+);
+
+export const ExportIcon = () => (
+    <svg {...iconProps} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9.75v6.75m0 0l-3-3m3 3l3-3m-8.25 6a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+    </svg>
+);
+
+
+export const LogoutIcon = () => (
+    <svg {...iconProps} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+    </svg>
+);
+
+export const UserManagementIcon = () => (
+    <svg {...iconProps} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-4.663l.001.001zm-3.175 8.455l.001-.001-.001.001zm-3.175-8.455a3 3 0 116.35 0 3 3 0 01-6.35 0z" />
+    </svg>
+);
