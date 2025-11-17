@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { RentalStatus } from '../types';
 import { ShareIcon, ExportIcon } from './Icons';

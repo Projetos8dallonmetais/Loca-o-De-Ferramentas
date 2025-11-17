@@ -1,11 +1,8 @@
-// Este é o ponto de partida para o seu servidor backend.
-// Aqui você pode configurar seu servidor Express (ou outro framework),
-// conectar ao banco de dados PostgreSQL e definir suas rotas de API.
-
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const multer = require('multer');
 const bcrypt = require('bcrypt');
 const { randomUUID } = require('crypto');
@@ -22,9 +19,14 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 
 // --- Configuração do Multer para Upload de Arquivos ---
+const uploadDir = 'uploads/';
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir);
+}
+
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, 'uploads/'); // Garanta que a pasta 'uploads' exista na raiz do backend
+    cb(null, uploadDir); 
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -33,6 +35,27 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
+
+// --- Funções Auxiliares ---
+const mapDbToApi = (r) => ({
+    id: r.id,
+    supplier: r.supplier,
+    description: r.description,
+    sector: r.sector,
+    dailyRate: parseFloat(r.daily_rate),
+    weeklyRate: parseFloat(r.weekly_rate),
+    monthlyRate: parseFloat(r.monthly_rate),
+    rateOption: r.rate_option,
+    rentalDate: new Date(r.rental_date).toISOString().split('T')[0],
+    returnDate: r.return_date ? new Date(r.return_date).toISOString().split('T')[0] : undefined,
+    project: r.project,
+    requester: r.requester,
+    usageType: r.usage_type,
+    receiptName: r.receipt_name,
+    receiptUrl: r.receipt_path ? `/uploads/${path.basename(r.receipt_path)}` : undefined,
+    observations: r.observations,
+    status: r.status,
+});
 
 // --- Rotas da API ---
 
@@ -47,35 +70,14 @@ app.get('/api', (req, res) => {
 app.get('/api/rentals', async (req, res) => {
   try {
     const { rows } = await db.query('SELECT * FROM rentals ORDER BY rental_date DESC');
-    // Mapear os nomes de coluna do banco (snake_case) para o frontend (camelCase)
-    const rentals = rows.map(r => ({
-        id: r.id,
-        supplier: r.supplier,
-        description: r.description,
-        sector: r.sector,
-        dailyRate: parseFloat(r.daily_rate),
-        weeklyRate: parseFloat(r.weekly_rate),
-        monthlyRate: parseFloat(r.monthly_rate),
-        rateOption: r.rate_option,
-        rentalDate: new Date(r.rental_date).toISOString().split('T')[0],
-        returnDate: r.return_date ? new Date(r.return_date).toISOString().split('T')[0] : undefined,
-        project: r.project,
-        requester: r.requester,
-        usageType: r.usage_type,
-        receiptName: r.receipt_name,
-        // O frontend espera uma URL completa para o recibo
-        receiptUrl: r.receipt_path ? `/uploads/${path.basename(r.receipt_path)}` : undefined,
-        observations: r.observations,
-        status: r.status,
-    }));
-    res.json(rentals);
+    res.json(rows.map(mapDbToApi));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Erro ao buscar locações.' });
   }
 });
 
-// POST /api/rentals - Criar nova locação (com upload de arquivo)
+// POST /api/rentals - Criar nova locação
 app.post('/api/rentals', upload.single('receipt'), async (req, res) => {
     const {
         supplier, description, sector, dailyRate, weeklyRate, monthlyRate,
@@ -84,8 +86,8 @@ app.post('/api/rentals', upload.single('receipt'), async (req, res) => {
 
     const status = returnDate ? 'devolvido' : 'alugado';
     const newId = randomUUID();
-    const receiptName = req.file ? req.file.originalname : undefined;
-    const receiptPath = req.file ? req.file.path : undefined;
+    const receiptName = req.file ? req.file.originalname : null;
+    const receiptPath = req.file ? req.file.path : null;
 
     try {
         const query = `
@@ -100,7 +102,7 @@ app.post('/api/rentals', upload.single('receipt'), async (req, res) => {
         ];
         
         const { rows } = await db.query(query, values);
-        res.status(201).json(rows[0]); // Retorna a nova locação criada
+        res.status(201).json(mapDbToApi(rows[0]));
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Erro ao salvar locação.' });
@@ -115,12 +117,17 @@ app.put('/api/rentals/:id', upload.single('receipt'), async (req, res) => {
         supplier, description, sector, dailyRate, weeklyRate, monthlyRate,
         rateOption, rentalDate, returnDate, project, requester, usageType, observations
     } = req.body;
-
-    const status = returnDate ? 'devolvido' : 'alugado';
-    const receiptName = req.file ? req.file.originalname : req.body.receiptName;
-    const receiptPath = req.file ? req.file.path : req.body.receiptPath;
      
     try {
+        const { rows: existingRows } = await db.query('SELECT receipt_path, receipt_name FROM rentals WHERE id = $1', [id]);
+        if (existingRows.length === 0) {
+            return res.status(404).json({ error: 'Locação não encontrada.' });
+        }
+
+        const status = returnDate ? 'devolvido' : 'alugado';
+        const receiptName = req.file ? req.file.originalname : (req.body.receiptName || existingRows[0].receipt_name);
+        const receiptPath = req.file ? req.file.path : existingRows[0].receipt_path;
+
         const query = `
             UPDATE rentals
             SET supplier = $1, description = $2, sector = $3, daily_rate = $4, weekly_rate = $5, monthly_rate = $6, rate_option = $7, rental_date = $8, return_date = $9, project = $10, requester = $11, usage_type = $12, observations = $13, status = $14, receipt_name = $15, receipt_path = $16
@@ -134,10 +141,7 @@ app.put('/api/rentals/:id', upload.single('receipt'), async (req, res) => {
         ];
 
         const { rows } = await db.query(query, values);
-        if (rows.length === 0) {
-            return res.status(404).json({ error: 'Locação não encontrada.' });
-        }
-        res.json(rows[0]);
+        res.json(mapDbToApi(rows[0]));
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Erro ao atualizar locação.' });
@@ -148,13 +152,12 @@ app.put('/api/rentals/:id', upload.single('receipt'), async (req, res) => {
 app.post('/api/rentals/:id/toggle-status', async (req, res) => {
     const { id } = req.params;
     try {
-        const { rows: currentRentalRows } = await db.query('SELECT * FROM rentals WHERE id = $1', [id]);
+        const { rows: currentRentalRows } = await db.query('SELECT status FROM rentals WHERE id = $1', [id]);
         if (currentRentalRows.length === 0) {
             return res.status(404).json({ error: 'Locação não encontrada.' });
         }
         
-        const rental = currentRentalRows[0];
-        const isReturning = rental.status === 'alugado';
+        const isReturning = currentRentalRows[0].status === 'alugado';
         const newStatus = isReturning ? 'devolvido' : 'alugado';
         const newReturnDate = isReturning ? new Date().toISOString().split('T')[0] : null;
 
@@ -162,7 +165,7 @@ app.post('/api/rentals/:id/toggle-status', async (req, res) => {
             'UPDATE rentals SET status = $1, return_date = $2 WHERE id = $3 RETURNING *',
             [newStatus, newReturnDate, id]
         );
-        res.json(rows[0]);
+        res.json(mapDbToApi(rows[0]));
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Erro ao atualizar status da locação.' });
@@ -177,7 +180,7 @@ app.delete('/api/rentals/:id', async (req, res) => {
         if (rowCount === 0) {
             return res.status(404).json({ error: 'Locação não encontrada.' });
         }
-        res.status(204).send(); // No content
+        res.status(204).send();
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Erro ao deletar locação.' });
@@ -210,8 +213,7 @@ app.post('/api/login', async (req, res) => {
 // GET /api/users - Listar todos os usuários
 app.get('/api/users', async (req, res) => {
     try {
-        // Retornar apenas campos seguros
-        const { rows } = await db.query('SELECT email, role FROM users');
+        const { rows } = await db.query('SELECT email, role FROM users ORDER BY email ASC');
         res.json(rows);
     } catch (err) {
         console.error(err);
@@ -223,7 +225,7 @@ app.get('/api/users', async (req, res) => {
 app.post('/api/users', async (req, res) => {
     const { email, password, role } = req.body;
     if (!email || !password || !role) {
-        return res.status(400).json({ error: 'Email, senha e role são obrigatórios.' });
+        return res.status(400).json({ error: 'Email, senha e nível de acesso são obrigatórios.' });
     }
     try {
         const salt = await bcrypt.genSalt(10);
@@ -236,7 +238,7 @@ app.post('/api/users', async (req, res) => {
         res.status(201).json(rows[0]);
     } catch (err) {
         if (err.code === '23505') { // unique_violation
-            return res.status(409).json({ error: 'Email já cadastrado.' });
+            return res.status(409).json({ error: 'Este email já está cadastrado.' });
         }
         console.error(err);
         res.status(500).json({ error: 'Erro ao criar usuário.' });
@@ -245,7 +247,6 @@ app.post('/api/users', async (req, res) => {
 
 // DELETE /api/users/:email - Deletar usuário
 app.delete('/api/users/:email', async (req, res) => {
-    // A rota na URL precisa de um encoding para emails com caracteres especiais.
     const email = decodeURIComponent(req.params.email);
     try {
         const { rowCount } = await db.query('DELETE FROM users WHERE email = $1', [email]);
@@ -261,6 +262,6 @@ app.delete('/api/users/:email', async (req, res) => {
 
 // --- Iniciar o Servidor ---
 app.listen(port, () => {
-  console.log(`Servidor backend pronto para ser desenvolvido!`);
-  console.log(`Servidor rodando na porta ${port}`);
+  console.log(`Servidor backend iniciado com sucesso.`);
+  console.log(`Acessível em: http://localhost:${port}`);
 });

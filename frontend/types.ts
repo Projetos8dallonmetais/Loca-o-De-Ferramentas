@@ -1,4 +1,3 @@
-
 export enum RentalRateOption {
   Daily = 'diaria',
   Weekly = 'semanal',
@@ -23,9 +22,8 @@ export interface User {
 }
 
 export interface StoredUser extends User {
-  password_very_insecure: string; // NOTE: Storing passwords in plain text is not secure. For demonstration only.
+  password_very_insecure: string; 
 }
-
 
 export interface RentalItem {
   id: string;
