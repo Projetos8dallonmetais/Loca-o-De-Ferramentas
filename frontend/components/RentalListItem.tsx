@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { RentalItem, RentalStatus, Role } from '../types';
 import { EditIcon, DeleteIcon, CheckIcon, ReturnIcon, PaperclipIcon } from './Icons';
@@ -36,9 +35,10 @@ const RentalListItem: React.FC<RentalListItemProps> = ({ rental, onEdit, onDelet
         {rental.receiptName && rental.receiptUrl && (
             <a
               href={rental.receiptUrl}
-              download={rental.receiptName}
+              target="_blank"
+              rel="noopener noreferrer"
               className="flex items-center gap-1 text-sm text-blue-600 hover:underline mt-1"
-              title={`Baixar recibo: ${rental.receiptName}`}
+              title={`Ver recibo: ${rental.receiptName}`}
             >
               <PaperclipIcon />
               <span>{rental.receiptName}</span>

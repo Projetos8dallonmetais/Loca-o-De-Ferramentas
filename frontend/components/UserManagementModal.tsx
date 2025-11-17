@@ -1,16 +1,16 @@
-
 import React, { useState } from 'react';
-import { StoredUser, Role } from '../types';
+import { StoredUser, Role, User } from '../types';
 import { DeleteIcon } from './Icons';
 
 interface UserManagementModalProps {
   isOpen: boolean;
   onClose: () => void;
-  users: StoredUser[];
-  onSaveUsers: (users: StoredUser[]) => void;
+  users: User[]; // Agora recebe User, não StoredUser
+  onAddUser: (user: StoredUser) => void;
+  onDeleteUser: (email: string) => void;
 }
 
-const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen, onClose, users, onSaveUsers }) => {
+const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen, onClose, users, onAddUser, onDeleteUser }) => {
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserRole, setNewUserRole] = useState<Role>('user');
@@ -24,19 +24,16 @@ const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen, onClo
         setError('Email e senha são obrigatórios.');
         return;
     }
-
-    if (users.some(u => u.email === newUserEmail)) {
-        setError('Este email já está cadastrado.');
-        return;
-    }
-
+    
+    // A verificação de email duplicado agora é feita pelo backend
+    
     const newUser: StoredUser = {
       email: newUserEmail,
       password_very_insecure: newUserPassword,
       role: newUserRole,
     };
 
-    onSaveUsers([...users, newUser]);
+    onAddUser(newUser);
     setNewUserEmail('');
     setNewUserPassword('');
     setNewUserRole('user');
@@ -49,7 +46,7 @@ const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen, onClo
         return;
     }
     if (window.confirm(`Tem certeza que deseja remover o usuário ${emailToDelete}?`)) {
-        onSaveUsers(users.filter(u => u.email !== emailToDelete));
+        onDeleteUser(emailToDelete);
     }
   };
 

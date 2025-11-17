@@ -11,6 +11,7 @@ import ShareLinkModal from './components/ShareLinkModal';
 import UserManagementModal from './components/UserManagementModal';
 import { PlusIcon } from './components/Icons';
 import * as api from './services/api';
+import ProjectReport from './components/ProjectReport';
 
 const App: React.FC = () => {
   // App Data State
@@ -37,50 +38,89 @@ const App: React.FC = () => {
   const [users, setUsers] = useState<StoredUser[]>([]);
   const [isReadOnlyView, setIsReadOnlyView] = useState(false);
   const [readOnlySupplierName, setReadOnlySupplierName] = useState<string | null>(null);
+  const [view, setView] = useState<'list' | 'report'>('list');
+
+
+  const fetchAppData = async (currentUser: User | null) => {
+    setLoading(true);
+    try {
+      if (currentUser?.role === 'admin') {
+        const storedUsers = await api.getUsers();
+        setUsers(storedUsers);
+      }
+      const storedRentals = await api.getRentals();
+      setRentals(storedRentals);
+    } catch (error) {
+      console.error("Failed to fetch app data:", error);
+      // Optional: show an error message to the user
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   // Initialize data from API service
   useEffect(() => {
-    const initializeApp = async () => {
+    const initializeApp = () => {
       setLoading(true);
-      
-      // Load users
-      const storedUsers = await api.getUsers();
-      setUsers(storedUsers);
-
-      // Load rentals
-      const storedRentals = await api.getRentals();
-      setRentals(storedRentals);
-
-      // Check for share link or active session
       const hash = window.location.hash;
       if (hash.startsWith('#/view?supplier=')) {
         const supplierName = decodeURIComponent(hash.substring('#/view?supplier='.length));
         setIsReadOnlyView(true);
         setReadOnlySupplierName(supplierName);
         setFilterSupplier(supplierName);
+        // Em modo somente leitura, ainda precisamos buscar os dados
+        fetchAppData(null);
       } else {
         const sessionUser = api.getSession();
         if (sessionUser) {
           setUser(sessionUser);
+          fetchAppData(sessionUser);
+        } else {
+          setLoading(false); // Não está logado, para de carregar para mostrar a tela de login
         }
       }
-      
-      setLoading(false);
     };
 
     initializeApp();
+     window.addEventListener('hashchange', initializeApp);
+    return () => {
+      window.removeEventListener('hashchange', initializeApp);
+    };
   }, []);
 
-  const saveUsers = async (updatedUsers: StoredUser[]) => {
-    await api.saveUsers(updatedUsers);
-    setUsers(updatedUsers);
+  const handleAddUser = async (newUser: StoredUser) => {
+    try {
+      // O 'saveUsers' na api foi adaptado para adicionar um usuário
+      await api.saveUsers([newUser]); // Enviando como array para manter a interface
+      const updatedUsers = await api.getUsers();
+      setUsers(updatedUsers);
+    } catch (error) {
+       if (error instanceof Error) {
+        alert(`Erro ao adicionar usuário: ${error.message}`);
+      } else {
+        alert('Ocorreu um erro desconhecido.');
+      }
+    }
   };
+
+  const handleDeleteUser = async (email: string) => {
+     try {
+        await api.deleteUser(email);
+        const updatedUsers = await api.getUsers();
+        setUsers(updatedUsers);
+    } catch (error) {
+        alert('Falha ao deletar usuário.');
+    }
+  }
 
 
   const handleLogin = async (email: string, password_very_insecure: string): Promise<boolean> => {
     const loggedInUser = await api.login(email, password_very_insecure);
     if (loggedInUser) {
       setUser(loggedInUser);
+      // Após o login, busca os dados necessários para a sessão
+      await fetchAppData(loggedInUser);
       return true;
     }
     return false;
@@ -89,6 +129,10 @@ const App: React.FC = () => {
   const handleLogout = () => {
     api.logout();
     setUser(null);
+    // Limpa os dados da aplicação ao sair
+    setRentals([]);
+    setUsers([]);
+    window.location.hash = ''; // Limpa o hash para evitar o modo read-only ao deslogar
   };
   
   const handleOpenModal = useCallback((rental: RentalItem | null = null) => {
@@ -102,20 +146,23 @@ const App: React.FC = () => {
   }, []);
 
   const handleSaveRental = useCallback(async (rentalData: Omit<RentalItem, 'id' | 'status' | 'receiptUrl'> & { id?: string }) => {
-    const savedRental = await api.saveRental(rentalData);
-    setRentals(currentRentals => {
-      const existingIndex = currentRentals.findIndex(r => r.id === savedRental.id);
-      if (existingIndex > -1) {
-        // Update existing
-        const newRentals = [...currentRentals];
-        newRentals[existingIndex] = savedRental;
-        return newRentals;
-      } else {
-        // Add new
-        return [savedRental, ...currentRentals];
-      }
-    });
-    handleCloseModal();
+    try {
+        const savedRental = await api.saveRental(rentalData);
+        setRentals(currentRentals => {
+          const existingIndex = currentRentals.findIndex(r => r.id === savedRental.id);
+          if (existingIndex > -1) {
+            // Update existing
+            return currentRentals.map(r => r.id === savedRental.id ? savedRental : r);
+          } else {
+            // Add new
+            return [savedRental, ...currentRentals];
+          }
+        });
+        handleCloseModal();
+    } catch (error) {
+        alert('Falha ao salvar a locação. Por favor, tente novamente.');
+        console.error(error);
+    }
   }, [handleCloseModal]);
   
   const handleDeleteRequest = useCallback((id: string) => {
@@ -240,6 +287,18 @@ const App: React.FC = () => {
     return filteredRentals.reduce((sum, rental) => sum + calculateCost(rental), 0);
   }, [filteredRentals, calculateCost]);
 
+  const projectCosts = useMemo(() => {
+    const costs: { [key: string]: number } = {};
+    rentals.forEach(rental => {
+      const cost = calculateCost(rental);
+      costs[rental.project] = (costs[rental.project] || 0) + cost;
+    });
+    return Object.entries(costs)
+      .map(([name, total]) => ({ name, total }))
+      .sort((a, b) => b.total - a.total);
+  }, [rentals, calculateCost]);
+
+
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center bg-slate-50"><p className="text-lg font-semibold">Carregando...</p></div>;
   }
@@ -259,46 +318,70 @@ const App: React.FC = () => {
       />
       <main className="container mx-auto p-4 md:p-8">
         <div className="bg-white rounded-xl shadow-lg p-6">
-          <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-            <h2 className="text-2xl font-bold text-gray-700">Painel de Locações {isReadOnlyView && ` - ${readOnlySupplierName}`}</h2>
-            {!isReadOnlyView && (
-              <button
-                onClick={() => handleOpenModal()}
-                className="w-full md:w-auto flex items-center justify-center gap-2 bg-emerald-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-emerald-700 transition duration-300 transform hover:scale-105"
-              >
-                <PlusIcon />
-                Nova Locação
-              </button>
-            )}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+              <div>
+                 <h2 className="text-2xl font-bold text-gray-700">Painel de Locações {isReadOnlyView && ` - ${readOnlySupplierName}`}</h2>
+                 {view === 'report' && <p className="text-sm text-gray-500">Análise de custos agregados por projeto</p>}
+              </div>
+
+            <div className="w-full md:w-auto flex flex-col md:flex-row items-center gap-2">
+                {!isReadOnlyView && (
+                    <div className="flex items-center border rounded-lg p-1 bg-gray-100">
+                        <button onClick={() => setView('list')} className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${view === 'list' ? 'bg-white text-emerald-600 shadow' : 'text-gray-600'}`}>
+                            Lista de Itens
+                        </button>
+                        <button onClick={() => setView('report')} className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${view === 'report' ? 'bg-white text-emerald-600 shadow' : 'text-gray-600'}`}>
+                            Relatório
+                        </button>
+                    </div>
+                )}
+                {!isReadOnlyView && view === 'list' && (
+                  <button
+                    onClick={() => handleOpenModal()}
+                    className="w-full md:w-auto flex items-center justify-center gap-2 bg-emerald-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-emerald-700 transition duration-300"
+                  >
+                    <PlusIcon />
+                    Nova Locação
+                  </button>
+                )}
+            </div>
           </div>
-          <FilterControls
-            suppliers={suppliers}
-            filterSupplier={filterSupplier}
-            setFilterSupplier={setFilterSupplier}
-            projects={projects}
-            filterProject={filterProject}
-            setFilterProject={setFilterProject}
-            filterStatus={filterStatus}
-            setFilterStatus={setFilterStatus}
-            filterDatePreset={filterDatePreset}
-            setFilterDatePreset={setFilterDatePreset}
-            filterCustomDate={filterCustomDate}
-            setFilterCustomDate={setFilterCustomDate}
-            onShareRequest={handleShareRequest}
-            onExportCSV={handleExportCSV}
-            isActionsDisabled={isReadOnlyView}
-            isExportDisabled={filteredRentals.length === 0}
-          />
-          <RentalList
-            rentals={filteredRentals}
-            onEdit={handleOpenModal}
-            onDelete={handleDeleteRequest}
-            onToggleStatus={handleToggleStatus}
-            calculateCost={calculateCost}
-            totalCost={totalCost}
-            isReadOnly={isReadOnlyView}
-            userRole={user?.role}
-          />
+
+          {view === 'list' ? (
+            <>
+              <FilterControls
+                suppliers={suppliers}
+                filterSupplier={filterSupplier}
+                setFilterSupplier={setFilterSupplier}
+                projects={projects}
+                filterProject={filterProject}
+                setFilterProject={setFilterProject}
+                filterStatus={filterStatus}
+                setFilterStatus={setFilterStatus}
+                filterDatePreset={filterDatePreset}
+                setFilterDatePreset={setFilterDatePreset}
+                filterCustomDate={filterCustomDate}
+                setFilterCustomDate={setFilterCustomDate}
+                onShareRequest={handleShareRequest}
+                onExportCSV={handleExportCSV}
+                isActionsDisabled={isReadOnlyView}
+                isExportDisabled={filteredRentals.length === 0}
+              />
+              <RentalList
+                rentals={filteredRentals}
+                onEdit={handleOpenModal}
+                onDelete={handleDeleteRequest}
+                onToggleStatus={handleToggleStatus}
+                calculateCost={calculateCost}
+                totalCost={totalCost}
+                isReadOnly={isReadOnlyView}
+                userRole={user?.role}
+              />
+            </>
+          ) : (
+            <ProjectReport projectCosts={projectCosts} />
+          )}
+
         </div>
       </main>
       
@@ -330,7 +413,8 @@ const App: React.FC = () => {
           isOpen={isUserManagementOpen}
           onClose={() => setIsUserManagementOpen(false)}
           users={users}
-          onSaveUsers={saveUsers}
+          onAddUser={handleAddUser}
+          onDeleteUser={handleDeleteUser}
         />
       )}
     </div>
